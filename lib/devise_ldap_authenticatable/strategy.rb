@@ -50,6 +50,7 @@ module Devise
         end
       end
 
+      # return always a resource: persisting or new, with o without errors on attributes
       def find_for_ldap_authentication(authentication_hash)
         if user_domain = user_domain(authentication_hash[:username])
           RequestStore.store[:user_domain] = user_domain
@@ -81,7 +82,9 @@ module Devise
 
         if resource.new_record?
           if validate(resource) { resource.valid_ldap_authentication?(password) }
-            return fail(:unknown_email) if resource.errors[:email].present?
+            resource.errors.keys.each do |attribute|
+              return fail("unknown_#{attribute}".to_sym) if attribute.present?
+            end
             return fail(:not_found_in_database) # Valid credentials
           else
             return fail(:invalid) # Invalid credentials
