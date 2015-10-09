@@ -27,37 +27,45 @@ module Devise
         resource    = nil
         domains.each do |domain|
           begin
-            Rails.logger.info "LDAP: looking for #{domain} domain..."
+            Rails.logger.info "LDAP: looking in #{domain} domain..."
             RequestStore.store[:user_domain] = domain
-            # the following call returns:
-            # 1) nil if authentication_hash does not countain a valid auth_key (:username in this case)
-            # 2) an existing resource
-            # 3) a brand new and persisted resource (auth success)
-            # 4) a brand new and NOT persisted resource (auth fail or resource invalid)
+
             resource = mapping.to.find_for_ldap_authentication(authentication_hash)
 
-            if resource.present?
-              if resource.persisted?
-                resource.update_column :domain, domain
-              else
-                resource.domain = domain
-              end
-              break
+            next unless resource.try(:ldap_entry) # next if not exist in the current domain
+            Rails.logger.info "LDAP: found in #{domain} domain..."
+
+            # update belonging domain
+            if resource.persisted?
+              resource.update_column :domain, domain
+            else
+              resource.domain = domain
             end
+            break #the first domain found wins
           rescue => e
             Rails.logger.warn e
           end
         end
+        resource
       end
 
-      # return always a resource: persisting or new, with o without errors on attributes
       def find_for_ldap_authentication(authentication_hash)
-        if user_domain = user_domain(authentication_hash[:username])
+
+        # if a domain is specified in the user model that one will be used
+        resource = if user_domain = user_domain(authentication_hash[:username])
           RequestStore.store[:user_domain] = user_domain
           mapping.to.find_for_ldap_authentication(authentication_hash)
         else
           find_for_ldap_authentication_through_domains(authentication_hash)
         end
+
+        # save the resource if valid and authenticated
+        if ::Devise.ldap_create_user && resource && resource.new_record? && resource.valid? && resource.valid_ldap_authentication?(resource.password)
+          resource.ldap_before_save if resource.respond_to?(:ldap_before_save)
+          resource.save!
+        end
+
+        resource
       end
 
       # Tests whether the returned resource exists in the database and the
@@ -66,7 +74,7 @@ module Devise
       # indicating whether the resource is not found in the database or the credentials
       # are invalid.
       def authenticate!
-        resource = mapping.to.find_for_ldap_authentication(authentication_hash.merge(password: password))
+        resource = find_for_ldap_authentication(authentication_hash.merge(password: password))
 
         return fail(:invalid) unless resource
 

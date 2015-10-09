@@ -87,6 +87,10 @@ module Devise
 
       module ClassMethods
         # Find a user for ldap authentication.
+        # it can returns:
+        # 1) nil if authentication_hash does not countain a valid auth_key (:username in this case)
+        # 2) an existing resource
+        # 4) a new resource (not saved)
         def find_for_ldap_authentication(attributes={})
           auth_key = self.authentication_keys.first
           return nil unless attributes[auth_key].present?
@@ -100,11 +104,6 @@ module Devise
             resource = new
             resource[auth_key] = auth_key_value
             resource.password = attributes[:password]
-          end
-
-          if ::Devise.ldap_create_user && resource.new_record? && resource.valid? && resource.valid_ldap_authentication?(attributes[:password])
-            resource.ldap_before_save if resource.respond_to?(:ldap_before_save)
-            resource.save!
           end
 
           resource
