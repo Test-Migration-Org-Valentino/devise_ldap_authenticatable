@@ -60,9 +60,9 @@ module Devise
         end
 
         # save the resource if valid and authenticated
-        if ::Devise.ldap_create_user && resource && resource.new_record? && resource.valid? && resource.valid_ldap_authentication?(resource.password)
+        if ::Devise.ldap_create_user && resource && resource.new_record? && resource.valid_ldap_authentication?(resource.password)
           resource.ldap_before_save if resource.respond_to?(:ldap_before_save)
-          resource.save!
+          resource.save!(validate: false) if resource.valid?
         end
 
         resource
@@ -90,9 +90,7 @@ module Devise
 
         if resource.new_record?
           if validate(resource) { resource.valid_ldap_authentication?(password) }
-            resource.errors.keys.each do |attribute|
-              return fail("unknown_#{attribute}".to_sym) if attribute.present?
-            end
+            return fail(resource.errors.full_messages.first) unless resource.errors.blank?
             return fail(:not_found_in_database) # Valid credentials
           else
             return fail(:invalid) # Invalid credentials
