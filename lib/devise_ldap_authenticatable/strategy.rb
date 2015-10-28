@@ -57,12 +57,6 @@ module Devise
           find_for_ldap_authentication_through_domains(authentication_hash)
         end
 
-        # save the resource if valid and authenticated
-        if ::Devise.ldap_create_user && resource && resource.new_record? && resource.valid_ldap_authentication?(resource.password)
-          resource.ldap_before_save if resource.respond_to?(:ldap_before_save)
-          resource.save!(validate: false) if resource.valid?
-        end
-
         resource
       end
 
@@ -73,27 +67,34 @@ module Devise
       # are invalid.
       def authenticate!
         resource = find_for_ldap_authentication(authentication_hash.merge(password: password))
-
         return fail(:invalid) unless resource
 
-        if resource.persisted?
-          if validate(resource) { resource.valid_ldap_authentication?(password) }
+        if validate(resource) { resource.valid_ldap_authentication?(password) }
+          # valid credential
+
+          resource.after_ldap_authentication if resource.respond_to?(:after_ldap_authentication)
+          return fail(resource.errors.full_messages.first) unless resource.valid?
+
+          if resource.persisted?
             remember_me(resource)
-            resource.after_ldap_authentication
             success!(resource)
-          else
-            return fail(:invalid) # Invalid credentials
           end
+
+          if resource.new_record?
+            if ::Devise.ldap_create_user
+              resource.save!(validate: false)
+              success!(resource)
+            else
+              return fail(:not_found_in_database)
+            end
+          end
+
+        else
+          # Invalid credentials
+          return fail(:invalid)
+
         end
 
-        if resource.new_record?
-          if validate(resource) { resource.valid_ldap_authentication?(password) }
-            return fail(resource.errors.full_messages.first) unless resource.errors.blank?
-            return fail(:not_found_in_database) # Valid credentials
-          else
-            return fail(:invalid) # Invalid credentials
-          end
-        end
       end
     end
   end

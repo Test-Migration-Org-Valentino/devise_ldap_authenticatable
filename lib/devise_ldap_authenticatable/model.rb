@@ -81,8 +81,8 @@ module Devise
       # end
 
       # Called after a successful LDAP authentication
-      def after_ldap_authentication
-      end
+      # def after_ldap_authentication
+      # end
 
 
       module ClassMethods
