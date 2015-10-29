@@ -52,8 +52,8 @@ module Devise
       def find_for_ldap_authentication(authentication_hash)
 
         # if a domain is specified in the user model that one will be used
-        resource = if user_domain = user_domain(authentication_hash[:username])
-          RequestStore.store[:user_domain] = user_domain
+        resource = if domain = user_domain(authentication_hash[:username])
+          RequestStore.store[:user_domain] = domain
           mapping.to.find_for_ldap_authentication(authentication_hash)
         else
           find_for_ldap_authentication_through_domains(authentication_hash)
