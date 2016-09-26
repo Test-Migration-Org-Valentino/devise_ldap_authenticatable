@@ -96,7 +96,12 @@ module Devise
           return fail(:invalid)
 
         end
-
+      rescue ActiveRecord::RecordInvalid => e
+        msg = I18n.t('devise.failure.not_found_in_database') + " #{e}"
+        return fail(msg)
+      rescue => error
+        Rails.logger.error { "LDAP AUTH ERROR while authenticating #{resource}: #{error}" }
+        return fail
       end
     end
   end
